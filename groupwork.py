@@ -223,57 +223,75 @@ class DataInspection:
 
     def plot_variable_distribution(self):
         """
-        Plot the distribution of a selected numeric variable. This includes:
-        1. A standalone histogram with KDE.
-        2. A combined plot with both a histogram and Q-Q plot.
-        3. Analyze the normality characteristics based on skewness and kurtosis.
+        Plot the distribution of a selected variable. This includes:
+        1. A histogram and a Q-Q plot for numeric columns.
+        2. A bar chart with value annotations for non-numeric columns.
+        3. Analyze normality for numeric columns.
         """
-        # Get numeric columns in the dataset
-        numeric_columns = self.df.select_dtypes(include=['float64', 'int64']).columns.tolist()
-
-        # Display available numeric columns
-        print("\nAvailable numeric columns for plotting distribution:")
-        for idx, col in enumerate(numeric_columns, 1):
+        # Display all available columns
+        print("\nAvailable columns for plotting distribution:")
+        for idx, col in enumerate(self.df.columns, 1):
             print(f"{idx}. {col}")
 
         # Ask the user to select a column
         column_index = int(input("Select a column to plot its distribution (by index): ")) - 1
-        column_name = numeric_columns[column_index]
+        column_name = self.df.columns[column_index]
 
         # Get the data from the selected column
         data = self.df[column_name].dropna()
 
-        # First plot: standalone histogram with KDE
-        plt.figure(figsize=(8, 5))
-        sns.histplot(data, kde=True)
-        plt.title(f'Distribution of {column_name}')
-        plt.xlabel(column_name)
-        plt.ylabel('Frequency')
-        plt.show()
+        # Check if the column is numeric
+        if pd.api.types.is_numeric_dtype(data):
+            # First plot: standalone histogram with KDE for numeric data
+            plt.figure(figsize=(8, 5))
+            sns.histplot(data, kde=True)
+            plt.title(f'Distribution of {column_name}')
+            plt.xlabel(column_name)
+            plt.ylabel('Frequency')
+            plt.show()
 
-        fig, ax = plt.subplots(figsize=(8, 6))
+            # Second plot: Q-Q plot for normality check
+            fig, ax = plt.subplots(figsize=(8, 6))
+            stats.probplot(data, dist="norm", plot=ax)
+            ax.set_title(f'Q-Q Plot of {column_name}')
+            ax.set_xlabel('Theoretical Quantiles')
+            ax.set_ylabel('Sample Quantiles')
+            plt.tight_layout()
+            plt.show()
 
-        # Q-Q plot for normality check
-        stats.probplot(data, dist="norm", plot=ax)
-        ax.set_title(f'Q-Q Plot of {column_name}')
-        ax.set_xlabel('Theoretical Quantiles')
-        ax.set_ylabel('Sample Quantiles')
+            # Calculate skewness and kurtosis
+            skewness = stats.skew(data)
+            kurtosis = stats.kurtosis(data)
 
-        # Display the Q-Q plot
-        plt.tight_layout()
-        plt.show()
+            # Analyze the normality characteristics
+            normality_type = self.analyze_normality(skewness, kurtosis)
 
-        # Calculate skewness and kurtosis
-        skewness = stats.skew(data)
-        kurtosis = stats.kurtosis(data)
+            # Print the result for normality
+            print(f"\nNormality Analysis for '{column_name}':")
+            print(f"Skewness: {skewness:.4f}, Kurtosis: {kurtosis:.4f}")
+            print(f"Data Normality is: {normality_type}")
 
-        # Analyze the normality characteristics
-        normality_type = self.analyze_normality(skewness, kurtosis)
+        else:
+            # Display bar chart for non-numeric data
+            plt.figure(figsize=(8, 5))
+            value_counts = data.value_counts()  # Get the frequency of each category
+            ax = value_counts.plot(kind='bar', color='skyblue', alpha=0.8)
+            
+            # Annotate each bar with the count
+            for p in ax.patches:
+                ax.annotate(f'{p.get_height()}', 
+                            (p.get_x() + p.get_width() / 2, p.get_height()), 
+                            ha='center', va='bottom', fontsize=10)
+            
+            plt.title(f'Bar Chart of {column_name}')
+            plt.xlabel(column_name)
+            plt.ylabel('Frequency')
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
+            plt.show()
 
-        # Print the result for normality
-        print(f"\nNormality Analysis for '{column_name}':")
-        print(f"Skewness: {skewness:.4f}, Kurtosis: {kurtosis:.4f}")
-        print(f"Data Normality is: {normality_type}")
+            print(f"The column '{column_name}' is not numeric, so a bar chart has been displayed instead.")
+
 
     def analyze_normality(self, skewness, kurtosis):
         """
