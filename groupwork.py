@@ -28,16 +28,13 @@ def clean_gender_column(df, column_name='Gender'):
         'nan': np.nan,
         '': np.nan  
     }
-
+    # Replace the values in the column based on the mapping
     df[column_name] = df[column_name].replace(gender_map)
 
-    mode_gender = df[column_name].mode()[0] if not df[column_name].mode().empty else 'Unknown'
-    df[column_name] = df[column_name].fillna(mode_gender)
-
-    #print(f"Cleaned '{column_name}' column. Most common gender: {mode_gender}")
+    # Drop rows with missing values in the Gender column
+    df = df.dropna(subset=[column_name])
+    #print(f"Dropped rows with missing values in column '{column_name}'.")
     return df
-
-import numpy as np
 
 def clean_IncomeLevel_column(df, column_name='IncomeLevel'):
     """
@@ -57,16 +54,9 @@ def clean_IncomeLevel_column(df, column_name='IncomeLevel'):
     # Replace the values in the column based on the mapping
     df[column_name] = df[column_name].replace(IncomeLevel_map)
 
-    # Calculate the mode (most common value) in the column
-    if df[column_name].notna().sum() > 0:  # Ensure there are valid values to calculate the mode
-        mode_IncomeLevel = df[column_name].mode()[0]
-    else:
-        mode_IncomeLevel = 'Unknown'  
-
-    # Fill missing values (NaN) with the mode
-    df[column_name] = df[column_name].fillna(mode_IncomeLevel)
-
-    #print(f"Cleaned '{column_name}' column. Most common IncomeLevel: {mode_IncomeLevel}")
+    # Drop rows with missing values in the IncomeLevel column
+    df = df.dropna(subset=[column_name])
+    #print(f"Dropped rows with missing values in column '{column_name}'.")
     return df
 
 class DataInspection:
@@ -101,16 +91,6 @@ class DataInspection:
         # Convert any 'nan' strings to actual NaN values
         self.df[col] = self.df[col].replace('nan', np.nan)
         
-        # Calculate missing percentage
-        missing_percentage = self.df[col].isnull().mean() * 100
-        #print(f"\nMissing percentage for column '{col}': {missing_percentage:.2f}%")
-
-        # Unique identifier: Drop rows with missing CustomerID
-        if 'ID' in col and missing_percentage > 0:
-            self.df = self.df.dropna(subset=[col])
-            #print(f"Dropped rows with missing values in column '{col}'.")
-            return True  # Rows were dropped or no missing values
-
         # Handle Gender column
         if col == 'Gender':
             self.df = clean_gender_column(self.df, col)
@@ -121,50 +101,19 @@ class DataInspection:
             self.df = clean_IncomeLevel_column(self.df, col)
             #print(f"Handled missing values in 'IncomeLevel' column.")
             return True
+        
+        # Check if the column exists in the DataFrame
+        if col not in self.df.columns:
+            print(f"Column '{col}' does not exist in the DataFrame.")
+            return False  
 
-        # Handle date columns
-        if pd.api.types.is_datetime64_any_dtype(self.df[col]):
-            if missing_percentage > 20:  # Arbitrary threshold
-                self.df = self.df.drop(columns=[col])
-                #print(f"Column '{col}' dropped due to high missing percentage.")
-                return True
-
-            most_common_date = self.df[col].mode()[0] if not self.df[col].mode().empty else pd.NaT
-            self.df[col] = self.df[col].fillna(most_common_date)
-            #print(f"Filled missing values in '{col}' with mode: {most_common_date}")
-            return True
-
-        # Handle missing values for numeric columns
-        elif pd.api.types.is_numeric_dtype(self.df[col]):
-            # Force conversion of text-based numbers to numeric (invalid strings become NaN)
-            self.df[col] = pd.to_numeric(self.df[col], errors='coerce')
-
-            if missing_percentage > 50:
-                #print(f"Column '{col}' dropped due to more than 50% missing values.")
-                self.df = self.df.drop(columns=[col])
-                return False  # Column was dropped
-
-            # Fill missing values with the median for numeric columns
-            median_value = self.df[col].median()
-            self.df[col] = self.df[col].fillna(median_value)
-            #print(f"Filled missing values in numeric column '{col}' with median: {median_value}")
-            return True
-
-        # Handle missing values for categorical or text columns
-        else:
-            # Convert all entries to string to handle 'nan' and other non-standard missing values
-            self.df[col] = self.df[col].astype(str).replace('nan', np.nan)
-
-            if missing_percentage > 50:
-                #print(f"Column '{col}' dropped due to more than 50% missing values.")
-                self.df = self.df.drop(columns=[col])
-                return False  # Column was dropped
-
-            # Fill missing values with the mode for categorical/text columns
-            mode_value = self.df[col].mode()[0] if not self.df[col].mode().empty else 'Unknown'
-            self.df[col] = self.df[col].fillna(mode_value)
-            #print(f"Filled missing values in categorical/text column '{col}' with mode: {mode_value}")
-            return True
+        # Convert any 'nan' strings to actual NaN values
+        self.df[col] = self.df[col].replace('nan', np.nan)
+        
+        # Drop rows with missing values in the specified column
+        self.df = self.df.dropna(subset=[col])
+        #print(f"Dropped rows with missing values in column '{col}'.")
+        return True    
         
     def show_variable_statistics(self):
         """
@@ -223,66 +172,78 @@ class DataInspection:
 
     def plot_variable_distribution(self):
         """
-        Plot the distribution of a selected variable. This includes:
-        1. A histogram and a Q-Q plot for numeric columns.
-        2. A bar chart with value annotations for non-numeric columns.
-        3. Analyze normality for numeric columns.
+        Plot the distribution of a selected variable. 
         """
         # Display all available columns
         print("\nAvailable columns for plotting distribution:")
         for idx, col in enumerate(self.df.columns, 1):
             print(f"{idx}. {col}")
 
-        # Ask the user to select a column
-        column_index = int(input("Select a column to plot its distribution (by index): ")) - 1
-        column_name = self.df.columns[column_index]
+        # Ask the user to select a plotting method
+        print("\nSelect a plotting method:")
+        print("1. Stacked Bar Chart")
+        print("2. Bar Chart")
+        print("3. Histogram")
+        print("4. Box Plot")
+        print("5. Q-Q Plot")
+        print("6. Check if the column is numeric")
+        print("7. Calculate skewness and kurtosis")
+        plotting_method = input("Enter your choice (1-7): ")
 
-        # Get the data from the selected column
-        data = self.df[column_name].dropna()
+        if plotting_method not in [str(i) for i in range(1, 8)]:
+            print("Invalid choice. Please select a number between 1 and 7.")
+            return
 
-        # Check if the column is numeric
-        if pd.api.types.is_numeric_dtype(data):
-            # First plot: standalone histogram with KDE for numeric data
+        if plotting_method == '1':
+            # Ask the user to select columns for plotting
+            print("\nSelect one non-numeric column and another non-numeric column:")
+            category_a_index = int(input(f"Enter the index of the first non-numeric column ({1} to {len(self.df.columns)}): ")) - 1
+            category_b_index = int(input(f"Enter the index of the second non-numeric column ({1} to {len(self.df.columns)}): ")) - 1
+
+            category_a_name = self.df.columns[category_a_index]
+            category_b_name = self.df.columns[category_b_index]
+
+            # Get the data from the selected columns
+            data_a = self.df[category_a_name].dropna()
+            data_b = self.df[category_b_name].dropna()
+
+            # Create a stacked bar chart
+            if pd.api.types.is_object_dtype(data_a) and pd.api.types.is_object_dtype(data_b):
+                plt.figure(figsize=(8, 5))
+                
+                # Create a cross-tabulation to count occurrences
+                crosstab = pd.crosstab(data_a, data_b)
+                
+                # Plot the stacked bar chart
+                crosstab.plot(kind='bar', stacked=True, ax=plt.gca(), color=['skyblue', 'lightgreen', 'salmon'])
+                plt.title(f'Stacked Bar Chart of {category_b_name} within {category_a_name}')
+                plt.xlabel(category_a_name)
+                plt.ylabel('Counts')
+                plt.legend(title=category_b_name)
+                plt.tight_layout()
+                plt.show()
+            else:
+                print("Both selected columns must be non-numeric for a stacked bar chart.")
+
+        elif plotting_method == '2':
+            # Ask the user to select a column
+            print("\nSelect a column to plot its distribution (by index):")
+            column_index = int(input(f"Enter the index of the column ({1} to {len(self.df.columns)}): ")) - 1
+            column_name = self.df.columns[column_index]
+
+            # Get the data from the selected column
+            data = self.df[column_name].dropna()
+            # Create a bar chart
             plt.figure(figsize=(8, 5))
-            sns.histplot(data, kde=True)
-            plt.title(f'Distribution of {column_name}')
-            plt.xlabel(column_name)
-            plt.ylabel('Frequency')
-            plt.show()
-
-            # Second plot: Q-Q plot for normality check
-            fig, ax = plt.subplots(figsize=(8, 6))
-            stats.probplot(data, dist="norm", plot=ax)
-            ax.set_title(f'Q-Q Plot of {column_name}')
-            ax.set_xlabel('Theoretical Quantiles')
-            ax.set_ylabel('Sample Quantiles')
-            plt.tight_layout()
-            plt.show()
-
-            # Calculate skewness and kurtosis
-            skewness = stats.skew(data)
-            kurtosis = stats.kurtosis(data)
-
-            # Analyze the normality characteristics
-            normality_type = self.analyze_normality(skewness, kurtosis)
-
-            # Print the result for normality
-            print(f"\nNormality Analysis for '{column_name}':")
-            print(f"Skewness: {skewness:.4f}, Kurtosis: {kurtosis:.4f}")
-            print(f"Data Normality is: {normality_type}")
-
-        else:
-            # Display bar chart for non-numeric data
-            plt.figure(figsize=(8, 5))
-            value_counts = data.value_counts()  # Get the frequency of each category
+            value_counts = data.value_counts()
             ax = value_counts.plot(kind='bar', color='skyblue', alpha=0.8)
             
-            # Annotate each bar with the count
+            # Annotate each bar with the frequency
             for p in ax.patches:
-                ax.annotate(f'{p.get_height()}', 
-                            (p.get_x() + p.get_width() / 2, p.get_height()), 
-                            ha='center', va='bottom', fontsize=10)
-            
+                ax.annotate(f'{int(p.get_height())}', 
+                            (p.get_x() + p.get_width() / 2., p.get_height()), 
+                            ha='center', va='bottom')
+
             plt.title(f'Bar Chart of {column_name}')
             plt.xlabel(column_name)
             plt.ylabel('Frequency')
@@ -290,7 +251,100 @@ class DataInspection:
             plt.tight_layout()
             plt.show()
 
-            print(f"The column '{column_name}' is not numeric, so a bar chart has been displayed instead.")
+        elif plotting_method == '3':
+            # Ask the user to select a column
+            print("\nSelect a column to plot its distribution (by index):")
+            column_index = int(input(f"Enter the index of the column ({1} to {len(self.df.columns)}): ")) - 1
+            column_name = self.df.columns[column_index]
+
+            # Get the data from the selected column
+            data = self.df[column_name].dropna()
+            # Create a histogram for numeric data
+            if pd.api.types.is_numeric_dtype(data):
+                plt.figure(figsize=(8, 5))
+                plt.hist(data, bins=20, color='skyblue', edgecolor='black', alpha=0.7)
+                plt.title(f'Histogram of {column_name}')
+                plt.xlabel(column_name)
+                plt.ylabel('Frequency')
+                plt.tight_layout()
+                plt.show()
+            else:
+                print(f"The column '{column_name}' is not numeric, so a histogram cannot be plotted.")
+
+        elif plotting_method == '4':
+            # Ask the user to select a column
+            print("\nSelect a column to plot its distribution (by index):")
+            column_index = int(input(f"Enter the index of the column ({1} to {len(self.df.columns)}): ")) - 1
+            column_name = self.df.columns[column_index]
+
+            # Get the data from the selected column
+            data = self.df[column_name].dropna()            
+            # Create a box plot for numeric data
+            if pd.api.types.is_numeric_dtype(data):
+                plt.figure(figsize=(8, 5))
+                plt.boxplot(data, patch_artist=True)
+                plt.title(f'Box Plot of {column_name}')
+                plt.ylabel(column_name)
+                plt.tight_layout()
+                plt.show()
+            else:
+                print(f"The column '{column_name}' is not numeric, so a box plot cannot be plotted.")
+
+        elif plotting_method == '5':
+            # Ask the user to select a column
+            print("\nSelect a column to plot its distribution (by index):")
+            column_index = int(input(f"Enter the index of the column ({1} to {len(self.df.columns)}): ")) - 1
+            column_name = self.df.columns[column_index]
+
+            # Get the data from the selected column
+            data = self.df[column_name].dropna()            
+            # Create a Q-Q plot for numeric data
+            if pd.api.types.is_numeric_dtype(data):
+                plt.figure(figsize=(8, 5))
+                stats.probplot(data, dist="norm", plot=plt)
+                plt.title(f'Q-Q Plot of {column_name}')
+                plt.tight_layout()
+                plt.show()
+            else:
+                print(f"The column '{column_name}' is not numeric, so a Q-Q plot cannot be plotted.")
+
+        elif plotting_method == '6':
+            # Ask the user to select a column
+            print("\nSelect a column to plot its distribution (by index):")
+            column_index = int(input(f"Enter the index of the column ({1} to {len(self.df.columns)}): ")) - 1
+            column_name = self.df.columns[column_index]
+
+            # Get the data from the selected column
+            data = self.df[column_name].dropna()            
+            # Check if the column is numeric
+            if pd.api.types.is_numeric_dtype(data):
+                print(f"The column '{column_name}' is numeric.")
+            else:
+                print(f"The column '{column_name}' is not numeric.")
+
+        elif plotting_method == '7':
+            # Ask the user to select a column
+            print("\nSelect a column to plot its distribution (by index):")
+            column_index = int(input(f"Enter the index of the column ({1} to {len(self.df.columns)}): ")) - 1
+            column_name = self.df.columns[column_index]
+
+            # Get the data from the selected column
+            data = self.df[column_name].dropna()            
+            # Check if the column is numeric and calculate skewness and kurtosis
+            if pd.api.types.is_numeric_dtype(data):
+                # Calculate skewness and kurtosis
+                skewness = data.skew()
+                kurtosis = data.kurt()
+                
+                # Analyze the normality characteristics
+                normality_type = self.analyze_normality(skewness, kurtosis)
+                
+                # Print skewness, kurtosis, and normality analysis
+                print(f"\nNormality Analysis for '{column_name}':")
+                print(f"Skewness: {skewness:.4f}, Kurtosis: {kurtosis:.4f}")
+                print(f"Data Normality is: {normality_type}")
+            else:
+                print(f"The column '{column_name}' is not numeric, so skewness and kurtosis cannot be calculated.")
 
 
     def analyze_normality(self, skewness, kurtosis):
@@ -383,8 +437,6 @@ class DataInspection:
         else:
             print("Result is not statistically significant.")
             print("Therefore, we fail to reject the Null Hypothesis.")
-
-
     
     def plot_qq_histogram_combined(self, data, title):
         """
