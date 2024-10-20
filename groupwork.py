@@ -187,7 +187,7 @@ class DataInspection:
         print("4. Box Plot")
         print("5. Q-Q Plot")
         print("6. Check if the column is numeric")
-        print("7. Calculate skewness and kurtosis")
+        print("7. Calculate skewness, kurtosis and Normality")
         plotting_method = input("Enter your choice (1-7): ")
 
         if plotting_method not in [str(i) for i in range(1, 8)]:
@@ -698,5 +698,6 @@ if __name__ == "__main__":
     
     if inspector.load_csv(file_path):
         inspector.show_variable_statistics()
-
-    inspector.show_analysis_menu()
+        inspector.show_analysis_menu()
+    else:
+        print(" ")
