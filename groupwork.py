@@ -379,10 +379,37 @@ class DataInspection:
 
         for col in self.df.columns:
             dtype = self.df[col].dtype
+            col_type = 'Unknown'  
+            
             if pd.api.types.is_numeric_dtype(dtype):
-                col_type = 'Ratio'
+                if dtype.kind in 'b':  # Boolean
+                    col_type = 'Nominal'
+                elif dtype.kind in 'i':  # Integer
+                    if (self.df[col].min() >= 0) or ("Rate" in col):
+                        col_type = 'Ratio'
+                    else:
+                        col_type = 'Interval'
+                elif dtype.kind in 'f':  # Float
+                    if self.df[col].eq(self.df[col].astype(int)).all():
+                        if (self.df[col].min() >= 0) or ("Rate" in col):
+                            col_type = 'Ratio'
+                        else:
+                            col_type = 'Interval'
+                    else:
+                        col_type = 'Interval'
+                else:
+                    col_type = 'Other Numeric'
+
+            elif pd.api.types.is_datetime64_dtype(dtype):
+                col_type = 'Interval'  
+
             else:
-                col_type = 'Ordinal' if self.df[col].nunique() < 10 else 'Nominal'
+                unique_count = self.df[col].nunique()
+                if unique_count < 6 and col != "Gender":
+                    col_type = 'Ordinal'
+                else:
+                    col_type = 'Nominal'
+            
             print(f"{col:<30}{col_type:<20}")
 
         # Prompt user to enter a continuous and categorical variable
