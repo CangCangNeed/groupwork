@@ -382,21 +382,27 @@ class DataInspection:
             col_type = 'Unknown'  
             
             if pd.api.types.is_numeric_dtype(dtype):
-                if dtype.kind in 'b':  # Boolean
+                if dtype.kind in 'b':  # Boolean type
                     col_type = 'Nominal'
-                elif dtype.kind in 'i':  # Integer
-                    if (self.df[col].min() >= 0) or ("Rate" in col):
+                
+                elif dtype.kind in 'i':  # Integer type
+                    if self.df[col].min() >= 0 or "Rate" in col:  
                         col_type = 'Ratio'
                     else:
                         col_type = 'Interval'
-                elif dtype.kind in 'f':  # Float
-                    if self.df[col].eq(self.df[col].astype(int)).all():
-                        if (self.df[col].min() >= 0) or ("Rate" in col):
+                
+                elif dtype.kind in 'f':  # Float type
+                    if self.df[col].eq(self.df[col].astype(int)).all():  
+                        if self.df[col].min() >= 0 or "Rate" in col:  
                             col_type = 'Ratio'
                         else:
                             col_type = 'Interval'
                     else:
-                        col_type = 'Interval'
+                        if "Rate" in col:  
+                            col_type = 'Ratio'
+                        else:
+                            col_type = 'Interval'
+
                 else:
                     col_type = 'Other Numeric'
 
@@ -405,7 +411,7 @@ class DataInspection:
 
             else:
                 unique_count = self.df[col].nunique()
-                if unique_count < 6 and col != "Gender":
+                if unique_count < 4 and col != "Gender" and col != "RepeatCustomer" and col != "PremiumMember" and col != "HasReturnedItems":
                     col_type = 'Ordinal'
                 else:
                     col_type = 'Nominal'
