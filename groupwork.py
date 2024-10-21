@@ -591,58 +591,74 @@ class DataInspection:
         
     def perform_sentiment_analysis(self):
         """
-        Conduct Sentiment Analysis on suitable text columns.
+        Conduct Sentiment Analysis on suitable text columns and on 'AverageSatisfactionScore'.
         """
-        print("Looking for text data in your dataset…")
+        print("Looking for suitable data in your dataset…")
 
         # Identify text columns
         text_columns = self.df.select_dtypes(include='object')
 
-        if text_columns.empty:
-            print("Sorry, your dataset does not have any suitable text data.")
-            print("Therefore, Sentiment Analysis is not possible.")
-            print("Returning to previous menu…")
-            return
+        # Check for the presence of the 'AverageSatisfactionScore' column
+        has_satisfaction_score = 'AverageSatisfactionScore' in self.df.columns
 
-        # Check if there are columns with sufficiently long text data
+        # Check for suitable text columns
         suitable_text_columns = []
-        for col in text_columns.columns:
-            avg_length = text_columns[col].apply(lambda x: len(str(x)) if pd.notnull(x) else 0).mean()
-            if avg_length > 30:  # Arbitrary threshold for "sufficiently long" text
-                suitable_text_columns.append(col)
+        if not text_columns.empty:
+            for col in text_columns.columns:
+                avg_length = text_columns[col].apply(lambda x: len(str(x)) if pd.notnull(x) else 0).mean()
+                if avg_length > 30:  # Arbitrary threshold for "sufficiently long" text
+                    suitable_text_columns.append(col)
 
-        if not suitable_text_columns:
-            print("Sorry, your dataset does not have suitable length text data.")
+        # If there are no text columns and no satisfaction score, exit
+        if not suitable_text_columns and not has_satisfaction_score:
+            print("Sorry, your dataset does not have suitable text or satisfaction score data.")
             print("Therefore, Sentiment Analysis is not possible.")
-            print("Returning to previous menu…")
+            print("Returning to the previous menu…")
             return
 
-        # Display available text columns
-        print("\nAvailable text columns for Sentiment Analysis:")
-        for idx, col in enumerate(suitable_text_columns, 1):
-            print(f"{idx}. {col}")
+        # Display available text columns if present
+        if suitable_text_columns:
+            print("\nAvailable text columns for Sentiment Analysis:")
+            for idx, col in enumerate(suitable_text_columns, 1):
+                print(f"{idx}. {col}")
+            print(f"{len(suitable_text_columns)+1}. AverageSatisfactionScore")
 
-        # Let the user select a text column for analysis
-        column_index = int(input("Select a text column to analyze (by index): ")) - 1
-        column_name = suitable_text_columns[column_index]
+            # Let the user select a column for analysis
+            column_index = int(input("Select a column to analyze (by index): ")) - 1
 
-        # Display text data to the user for review
-        print(f"\nText data in the selected column '{column_name}':")
-        print(self.df[column_name].head())  # Show the first few rows
+            if column_index == len(suitable_text_columns):
+                column_name = 'AverageSatisfactionScore'
+            else:
+                column_name = suitable_text_columns[column_index]
 
-        # Ask the user to choose a sentiment analysis method
-        print("\nChoose the type of sentiment analysis:")
-        print("1. VADER")
-        print("2. TextBlob")
-        choice = input("Enter your choice (1/2): ").strip()
-
-        # Perform sentiment analysis based on the user's choice
-        if choice == '1':
-            self.vader_sentiment_analysis(self.df[column_name])
-        elif choice == '2':
-            self.textblob_sentiment_analysis(self.df[column_name])
         else:
-            print("Invalid choice. Returning to previous menu.")
+            # Only 'AverageSatisfactionScore' is available
+            print("\nAnalyzing the 'AverageSatisfactionScore' column for sentiment.")
+            column_name = 'AverageSatisfactionScore'
+
+        # If selected column is 'AverageSatisfactionScore', perform numeric-based sentiment analysis
+        if column_name == 'AverageSatisfactionScore':
+            self.analyze_satisfaction_score(self.df['AverageSatisfactionScore'])
+
+        # Otherwise, conduct sentiment analysis on the selected text column
+        else:
+            # Display text data to the user for review
+            print(f"\nText data in the selected column '{column_name}':")
+            print(self.df[column_name].head())  # Show the first few rows
+
+            # Ask the user to choose a sentiment analysis method
+            print("\nChoose the type of sentiment analysis:")
+            print("1. VADER")
+            print("2. TextBlob")
+            choice = input("Enter your choice (1/2): ").strip()
+
+            # Perform sentiment analysis based on the user's choice
+            if choice == '1':
+                self.vader_sentiment_analysis(self.df[column_name])
+            elif choice == '2':
+                self.textblob_sentiment_analysis(self.df[column_name])
+            else:
+                print("Invalid choice. Returning to the previous menu.")
 
     def vader_sentiment_analysis(self, data):
         """
@@ -691,7 +707,33 @@ class DataInspection:
         result_df = pd.DataFrame({'Text': data, 'Score': scores, 'Sentiment': sentiments, 'Subjectivity': subjectivities})
         print("\nSentiment Analysis Results (TextBlob):")
         print(result_df)
-    
+
+    def analyze_satisfaction_score(self, data):
+        """
+        Analyze the numeric 'AverageSatisfactionScore' column as a form of sentiment analysis.
+        """
+        # Categorize the scores into positive, neutral, and negative
+        sentiments = []
+        for score in data:
+            if score >= 7:
+                sentiments.append('positive')
+            elif 4 <= score <= 6:
+                sentiments.append('neutral')
+            else:
+                sentiments.append('negative')
+
+        result_df = pd.DataFrame({'AverageSatisfactionScore': data, 'Sentiment': sentiments})
+        print("\nSentiment Analysis Results for 'AverageSatisfactionScore':")
+        print(result_df)
+
+        # Optionally, plot the results for better understanding
+        sentiment_counts = result_df['Sentiment'].value_counts()
+        sentiment_counts.plot(kind='bar', color=['green', 'orange', 'red'], alpha=0.7)
+        plt.title("Sentiment Distribution based on 'AverageSatisfactionScore'")
+        plt.xlabel("Sentiment")
+        plt.ylabel("Frequency")
+        plt.show()
+
 if __name__ == "__main__":
     inspector = DataInspection()
     file_path = input("Enter the path of the dataset (CSV file): ").strip()
